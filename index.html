@@ -205,7 +205,7 @@
     env.useBrowserCache = false; // Disable caching temporarily to bypass corrupt cache errors
     
     window.AutoTokenizer = AutoTokenizer;
-    window.hfEnv = env; // <--- CRITICAL FIX: Expose environment so we can edit the host URL later
+    window.hfEnv = env; // Expose environment so we can edit the host URL
 </script>
 
 <script>
@@ -282,9 +282,7 @@
 
         const useProxy = UI.proxyTgl.classList.contains('on');
         
-        // --- CRITICAL BYPASS RULE ---
-        // If the URL contains .onnx or .json, DO NOT use the proxy. 
-        // Edge functions timeout on 400MB files. Let Cloudflare handle it directly.
+        // CRITICAL BYPASS RULE: If the URL is a model file, DO NOT use the proxy
         const isModelWeight = url.endsWith('.onnx') || url.endsWith('.json');
 
         if (useProxy && !isModelWeight) {
@@ -302,7 +300,6 @@
             });
         }
         
-        // Intercept failed requests to give precise error logs
         try {
             const response = await originalFetch(...args);
             if (!response.ok) {
@@ -311,7 +308,7 @@
             return response;
         } catch (error) {
             log(`NetworkError fetching: ${url}`, "err");
-            throw error; // Re-throw so the app catches it normally
+            throw error; 
         }
     };
 
@@ -323,7 +320,6 @@
         if (!baseUrl) return alert("Please enter the R2 Model Base URL.");
         if (!window.AutoTokenizer) return alert("Tokenizer library loading. Wait 2 seconds and click again.");
 
-        // Sanitize URL: ensure it ends with a slash
         if (!baseUrl.endsWith('/')) baseUrl += '/';
 
         UI.btnLoad.disabled = true;
@@ -331,23 +327,20 @@
         log(`Targeting URL: ${baseUrl}`, "warn");
 
         try {
-            // 1. Tokenizer
             log("Fetching Tokenizer dictionary (tokenizer.json)...", "info");
             
-            // --- CRITICAL FIX: Stop Transformers.js from appending HuggingFace URL ---
+            // Stop Transformers.js from appending HuggingFace URL
             window.hfEnv.remoteHost = baseUrl;
-            window.hfEnv.remotePathTemplate = '{file}'; // Look for the raw file, no repo structure
+            window.hfEnv.remotePathTemplate = '{file}'; 
             
             state.tokenizer = await window.AutoTokenizer.from_pretrained('custom-model'); 
             log("Tokenizer loaded successfully.", "ok");
 
-            // 2. Vision Encoder
             log("Downloading Vision Encoder (vision_encoder_int8.onnx)...", "info");
             const visionPath = `${baseUrl}vision_encoder_int8.onnx`;
             state.visionSession = await ort.InferenceSession.create(visionPath, { executionProviders: ['webgpu', 'wasm'] });
             log(`Vision Encoder ready.`, "ok");
 
-            // 3. Language Decoder
             log("Downloading Language Model (language_model_int8.onnx)...", "info");
             const langPath = `${baseUrl}language_model_int8.onnx`;
             state.langSession = await ort.InferenceSession.create(langPath, { executionProviders: ['webgpu', 'wasm'] });
@@ -367,7 +360,8 @@
      * ========================================== */
     UI.drop.addEventListener('click', () => UI.fileIn.click());
     UI.drop.addEventListener('dragover', e => { e.preventDefault(); UI.drop.classList.add('dragover'); });
-    UI.drop.addEventListener('dragleave', () => UI.drop.classList.remove('dragover'); });
+    // --- THIS IS THE LINE THAT WAS FIXED ---
+    UI.drop.addEventListener('dragleave', () => UI.drop.classList.remove('dragover')); 
     UI.drop.addEventListener('drop', e => { e.preventDefault(); UI.drop.classList.remove('dragover'); handleFiles(e.dataTransfer.files); });
     UI.fileIn.addEventListener('change', e => handleFiles(e.target.files));
 
@@ -454,7 +448,6 @@
                 const imgFeatures = vResults[state.visionSession.outputNames[0]]; 
 
                 log(`Language Pass: Pg ${i+1}...`, "info");
-                // GLM standard BOS token setup
                 inputIds = new ort.Tensor('int32', new Int32Array([150004]), [1, 1]);
 
                 lResults = await state.langSession.run({ 
