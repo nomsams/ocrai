@@ -205,6 +205,7 @@
     env.useBrowserCache = false; // Disable caching temporarily to bypass corrupt cache errors
     
     window.AutoTokenizer = AutoTokenizer;
+    window.hfEnv = env; // <--- CRITICAL FIX: Expose environment so we can edit the host URL later
 </script>
 
 <script>
@@ -322,7 +323,7 @@
         if (!baseUrl) return alert("Please enter the R2 Model Base URL.");
         if (!window.AutoTokenizer) return alert("Tokenizer library loading. Wait 2 seconds and click again.");
 
-        // Sanitize URL: ensure it ends with a slash so AutoTokenizer doesn't build a broken path
+        // Sanitize URL: ensure it ends with a slash
         if (!baseUrl.endsWith('/')) baseUrl += '/';
 
         UI.btnLoad.disabled = true;
@@ -332,7 +333,12 @@
         try {
             // 1. Tokenizer
             log("Fetching Tokenizer dictionary (tokenizer.json)...", "info");
-            state.tokenizer = await window.AutoTokenizer.from_pretrained(baseUrl);
+            
+            // --- CRITICAL FIX: Stop Transformers.js from appending HuggingFace URL ---
+            window.hfEnv.remoteHost = baseUrl;
+            window.hfEnv.remotePathTemplate = '{file}'; // Look for the raw file, no repo structure
+            
+            state.tokenizer = await window.AutoTokenizer.from_pretrained('custom-model'); 
             log("Tokenizer loaded successfully.", "ok");
 
             // 2. Vision Encoder
@@ -361,7 +367,7 @@
      * ========================================== */
     UI.drop.addEventListener('click', () => UI.fileIn.click());
     UI.drop.addEventListener('dragover', e => { e.preventDefault(); UI.drop.classList.add('dragover'); });
-    UI.drop.addEventListener('dragleave', () => UI.drop.classList.remove('dragover'));
+    UI.drop.addEventListener('dragleave', () => UI.drop.classList.remove('dragover'); });
     UI.drop.addEventListener('drop', e => { e.preventDefault(); UI.drop.classList.remove('dragover'); handleFiles(e.dataTransfer.files); });
     UI.fileIn.addEventListener('change', e => handleFiles(e.target.files));
 
