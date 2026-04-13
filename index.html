@@ -202,7 +202,7 @@
     // Lockdown the environment so it doesn't search local files
     env.allowLocalModels = false;
     env.allowRemoteModels = true;
-    env.useBrowserCache = false; // Disable caching temporarily to bypass corrupt cache errors
+    env.useBrowserCache = false; 
     
     window.AutoTokenizer = AutoTokenizer;
 </script>
@@ -264,7 +264,7 @@
     });
 
     /** ==========================================
-     * 2. ROBUST FETCH INTERCEPTOR (THE HIJACKER)
+     * 2. CACHE-BUSTING FETCH INTERCEPTOR 
      * ========================================== */
     const originalFetch = window.fetch;
     window.fetch = async (...args) => {
@@ -283,16 +283,24 @@
         if (baseUrl && !baseUrl.endsWith('/')) baseUrl += '/';
 
         // --- THE TOKENIZER HIJACK ---
-        // If transformers.js tries to hit HuggingFace for our custom model,
-        // we snatch it mid-air and redirect it to your Cloudflare bucket!
+        // If transformers.js tries to hit HuggingFace, redirect to Cloudflare
         if (url.includes('custom-model/resolve/')) {
-            const filename = url.split('/').pop(); // Gets 'tokenizer.json'
-            url = baseUrl + filename; // Forces it to use: https://pub-...r2.dev/glm-ocr/tokenizer.json
+            const filename = url.split('/').pop(); 
+            url = baseUrl + filename; 
         }
 
         const useProxy = UI.proxyTgl.classList.contains('on');
         const isModelWeight = url.endsWith('.onnx') || url.endsWith('.json');
 
+        // --- CACHE BUSTER ---
+        // Force the browser to ignore previous CORS failure memories
+        let safeOptions = { ...options };
+        if (isModelWeight) {
+            safeOptions.cache = 'no-store';
+            safeOptions.mode = 'cors';
+        }
+
+        // PROXY BYPASS LOGIC
         if (useProxy && !isModelWeight) {
             const hKey = UI.pKeyName.value.trim();
             const hVal = UI.pKeyVal.value.trim();
@@ -302,15 +310,14 @@
                 headers: { 'Content-Type': 'application/json', [hKey]: hVal },
                 body: JSON.stringify({
                     url: url,
-                    method: options.method || 'GET',
-                    headers: options.headers || {}
+                    method: safeOptions.method || 'GET',
+                    headers: safeOptions.headers || {}
                 })
             });
         }
         
         try {
-            // Important: We use our overridden 'url' variable here so the hijack takes effect
-            const response = await originalFetch(url, options);
+            const response = await originalFetch(url, safeOptions);
             if (!response.ok) {
                 log(`HTTP ${response.status} from: ${url}`, "err");
             }
@@ -336,9 +343,9 @@
         log(`Targeting URL: ${baseUrl}`, "warn");
 
         try {
-            log("Fetching Tokenizer dictionary (tokenizer.json)...", "info");
+            log("Fetching Tokenizer dictionary...", "info");
             
-            // This triggers the fetch interceptor above!
+            // This triggers the fetch interceptor hijack above
             state.tokenizer = await window.AutoTokenizer.from_pretrained('custom-model'); 
             
             log("Tokenizer loaded successfully.", "ok");
