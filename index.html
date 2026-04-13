@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GLM-OCR | Ultimate Local Pipeline</title>
+    <title>GLM-OCR | Production Local Engine</title>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
@@ -34,12 +34,10 @@
             transition: background 0.3s, color 0.3s;
         }
 
-        /* === Scrollbars === */
         ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: var(--bg); }
         ::-webkit-scrollbar-thumb { background: var(--muted-2); border-radius: 4px; }
 
-        /* === Layout === */
         header { 
             height: 60px; background: var(--panel); border-bottom: 1px solid var(--border); 
             display: flex; align-items: center; justify-content: space-between; 
@@ -49,14 +47,13 @@
         .badge { background: var(--accent); color: #000; font-size: 11px; padding: 3px 8px; border-radius: 6px; font-weight: 700; }
 
         main {
-            flex: 1; display: grid; grid-template-columns: 350px 1fr; gap: 20px;
+            flex: 1; display: grid; grid-template-columns: 380px 1fr; gap: 20px;
             padding: 24px; max-width: 1600px; margin: 0 auto; width: 100%;
         }
         @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
 
         .col { display: flex; flex-direction: column; gap: 16px; }
 
-        /* === Cards & Inputs === */
         .card {
             background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
             display: flex; flex-direction: column; box-shadow: var(--shadow); overflow: hidden;
@@ -85,7 +82,6 @@
         .switch.on { background: var(--accent); }
         .switch.on::after { transform: translateX(16px); }
 
-        /* === Buttons === */
         .btn-row { display: flex; gap: 10px; }
         button {
             flex: 1; background: var(--muted-2); border: 1px solid var(--border); color: var(--text);
@@ -96,7 +92,6 @@
         button.primary { background: var(--accent); color: #090b10; border: none; }
         button.primary:hover:not(:disabled) { filter: brightness(1.1); color: #000; }
 
-        /* === Dropzone & Gallery === */
         .dropzone {
             border: 2px dashed var(--muted); border-radius: 8px; padding: 30px 20px;
             text-align: center; cursor: pointer; transition: 0.2s; background: var(--bg);
@@ -115,19 +110,17 @@
             display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0;
         }
 
-        /* === Output Editor === */
         textarea {
             width: 100%; height: 100%; min-height: 400px; padding: 16px; border-radius: 8px;
             border: 1px solid var(--border); background: var(--bg); color: var(--text);
             font-family: 'SFMono-Regular', Consolas, monospace; font-size: 13px; resize: none;
         }
 
-        /* === Progress & Logs === */
         .status-text { font-size: 12px; color: var(--text-dim); display: flex; justify-content: space-between; margin-top: 8px; }
         .progress-bar { height: 6px; background: var(--muted); border-radius: 3px; overflow: hidden; margin-top: 4px; }
         .progress-fill { height: 100%; background: var(--accent); width: 0%; transition: 0.3s; }
         
-        #logs { font-family: monospace; font-size: 11px; color: var(--text-dim); max-height: 150px; overflow-y: auto; padding: 10px; background: var(--bg); border-radius: 8px; border: 1px solid var(--border); margin-top: 10px;}
+        #logs { font-family: monospace; font-size: 11px; color: var(--text-dim); height: 180px; overflow-y: auto; padding: 10px; background: var(--bg); border-radius: 8px; border: 1px solid var(--border); margin-top: 10px; word-break: break-all;}
         .log-ok { color: var(--ok); } .log-err { color: var(--err); } .log-warn { color: var(--warn); }
     </style>
 </head>
@@ -143,21 +136,20 @@
 
 <main>
     <div class="col">
-        
         <div class="card">
             <div class="card-head">1. Engine Configuration</div>
             <div class="card-body">
                 <div>
-                    <label>R2 Model Base URL (Folder with ONNX files)</label>
-                    <input type="url" id="modelUrl" placeholder="https://pub-xxx.r2.dev/glm-ocr">
+                    <label>R2 Model Base URL (e.g. https://pub-xxx.r2.dev/glm-ocr)</label>
+                    <input type="url" id="modelUrl" placeholder="https://pub-your-string.r2.dev/glm-ocr">
                 </div>
                 
                 <div style="background: var(--bg); padding: 12px; border-radius: 8px; border: 1px solid var(--border);">
                     <div style="display:flex; justify-content:space-between; margin-bottom: 8px;">
-                        <label style="margin:0; color: var(--accent);">Use Lovable CORS Proxy</label>
-                        <div id="proxyToggle" class="switch on"></div>
+                        <label style="margin:0; color: var(--accent);">Use Lovable CORS Proxy (For API calls only)</label>
+                        <div id="proxyToggle" class="switch"></div>
                     </div>
-                    <div id="proxySettings" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div id="proxySettings" style="display: none; grid-template-columns: 1fr 1fr; gap: 10px;">
                         <div><label>Header Key</label><input type="text" id="proxyKeyName" value="x-proxy-key"></div>
                         <div><label>Header Value</label><input type="password" id="proxyKeyVal" value="chikibriki"></div>
                     </div>
@@ -199,13 +191,19 @@
             <button id="btnCopy" style="width: auto; padding: 4px 12px; font-size: 11px;">Copy Output</button>
         </div>
         <div class="card-body" style="padding: 0; flex: 1;">
-            <textarea id="outputTxt" style="border: none; border-radius: 0;"></textarea>
+            <textarea id="outputTxt" style="border: none; border-radius: 0;" placeholder="Processed text will appear here..."></textarea>
         </div>
     </div>
 </main>
 
 <script type="module">
-    import { AutoTokenizer } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0';
+    import { AutoTokenizer, env } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0';
+    
+    // Lockdown the environment so it doesn't search huggingface.co or local files
+    env.allowLocalModels = false;
+    env.allowRemoteModels = true;
+    env.useBrowserCache = false; // Disable caching temporarily to bypass corrupt cache errors
+    
     window.AutoTokenizer = AutoTokenizer;
 </script>
 
@@ -219,7 +217,7 @@
         visionSession: null,
         langSession: null,
         tokenizer: null,
-        files: [], // { id, dataUrl }
+        files: [],
         isProcessing: false,
         proxyUrl: "https://onbkfqayveownervyktu.supabase.co/functions/v1/cors-proxy"
     };
@@ -251,7 +249,6 @@
         UI.logs.scrollTop = UI.logs.scrollHeight;
     }
 
-    // Settings Persistence
     UI.modelUrl.value = localStorage.getItem('glm_url') || '';
     UI.modelUrl.addEventListener('change', e => localStorage.setItem('glm_url', e.target.value));
     
@@ -267,22 +264,32 @@
     });
 
     /** ==========================================
-     * 2. GLOBAL FETCH INTERCEPTOR (The Magic)
+     * 2. ROBUST FETCH INTERCEPTOR
      * ========================================== */
     const originalFetch = window.fetch;
     window.fetch = async (...args) => {
-        let url = typeof args[0] === 'string' ? args[0] : args[0].url;
-        let options = args[1] || {};
+        let url = '';
+        if (args[0] instanceof Request) url = args[0].url;
+        else if (typeof args[0] === 'string') url = args[0];
+        else if (args[0] && args[0].url) url = args[0].url;
         
-        const useProxy = UI.proxyTgl.classList.contains('on');
-        const baseUrl = UI.modelUrl.value.trim();
+        let options = args[1] || {};
+        if (args[0] instanceof Request) {
+            options.method = args[0].method;
+            options.headers = args[0].headers;
+        }
 
-        // If proxy is ON, and the request is going to our Cloudflare Model Bucket...
-        if (useProxy && baseUrl && url.startsWith(baseUrl)) {
+        const useProxy = UI.proxyTgl.classList.contains('on');
+        
+        // --- CRITICAL BYPASS RULE ---
+        // If the URL contains .onnx or .json, DO NOT use the proxy. 
+        // Edge functions timeout on 400MB files. Let Cloudflare handle it directly.
+        const isModelWeight = url.endsWith('.onnx') || url.endsWith('.json');
+
+        if (useProxy && !isModelWeight) {
             const hKey = UI.pKeyName.value.trim();
             const hVal = UI.pKeyVal.value.trim();
             
-            // Route through Lovable Supabase Edge Function via POST
             return originalFetch(state.proxyUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', [hKey]: hVal },
@@ -293,44 +300,58 @@
                 })
             });
         }
-        // Otherwise, allow standard fetch
-        return originalFetch(...args);
+        
+        // Intercept failed requests to give precise error logs
+        try {
+            const response = await originalFetch(...args);
+            if (!response.ok) {
+                log(`HTTP ${response.status} from: ${url}`, "err");
+            }
+            return response;
+        } catch (error) {
+            log(`NetworkError fetching: ${url}`, "err");
+            throw error; // Re-throw so the app catches it normally
+        }
     };
 
     /** ==========================================
      * 3. ENGINE INITIALIZATION
      * ========================================== */
     UI.btnLoad.addEventListener('click', async () => {
-        const baseUrl = UI.modelUrl.value.trim();
+        let baseUrl = UI.modelUrl.value.trim();
         if (!baseUrl) return alert("Please enter the R2 Model Base URL.");
-        if (!window.AutoTokenizer) return alert("Tokenizer library is still loading, please wait a second.");
+        if (!window.AutoTokenizer) return alert("Tokenizer library loading. Wait 2 seconds and click again.");
+
+        // Sanitize URL: ensure it ends with a slash so AutoTokenizer doesn't build a broken path
+        if (!baseUrl.endsWith('/')) baseUrl += '/';
 
         UI.btnLoad.disabled = true;
-        log("Initializing Inference Pipeline...", "warn");
+        log("----------------------------------", "info");
+        log(`Targeting URL: ${baseUrl}`, "warn");
 
         try {
             // 1. Tokenizer
-            log("Fetching Tokenizer dictionary...", "info");
+            log("Fetching Tokenizer dictionary (tokenizer.json)...", "info");
             state.tokenizer = await window.AutoTokenizer.from_pretrained(baseUrl);
             log("Tokenizer loaded successfully.", "ok");
 
             // 2. Vision Encoder
-            log("Allocating WebGPU memory for Vision Encoder...", "info");
-            const visionPath = `${baseUrl}/vision_encoder_int8.onnx`;
-            state.visionSession = await ort.InferenceSession.create(visionPath, { executionProviders: ['webgpu'] });
-            log(`Vision Encoder ready. Expected inputs: ${state.visionSession.inputNames}`, "ok");
+            log("Downloading Vision Encoder (vision_encoder_int8.onnx)...", "info");
+            const visionPath = `${baseUrl}vision_encoder_int8.onnx`;
+            state.visionSession = await ort.InferenceSession.create(visionPath, { executionProviders: ['webgpu', 'wasm'] });
+            log(`Vision Encoder ready.`, "ok");
 
             // 3. Language Decoder
-            log("Allocating WebGPU memory for Language Decoder...", "info");
-            const langPath = `${baseUrl}/language_model_int8.onnx`;
-            state.langSession = await ort.InferenceSession.create(langPath, { executionProviders: ['webgpu'] });
-            log(`Language Decoder ready. Expected inputs: ${state.langSession.inputNames}`, "ok");
+            log("Downloading Language Model (language_model_int8.onnx)...", "info");
+            const langPath = `${baseUrl}language_model_int8.onnx`;
+            state.langSession = await ort.InferenceSession.create(langPath, { executionProviders: ['webgpu', 'wasm'] });
+            log(`Language Decoder ready.`, "ok");
 
             UI.btnLoad.textContent = "Engines Online";
             if(state.files.length > 0) UI.btnRun.disabled = false;
 
         } catch (err) {
-            log(`Engine Failure: ${err.message}`, "err");
+            log(`Fatal Load Error: ${err.message}`, "err");
             UI.btnLoad.disabled = false;
         }
     });
@@ -345,7 +366,6 @@
     UI.fileIn.addEventListener('change', e => handleFiles(e.target.files));
 
     async function handleFiles(fileList) {
-        log("Extracting assets...", "info");
         for (let f of fileList) {
             if (f.type === 'application/pdf') await extractPdf(f);
             else if (f.type.startsWith('image/')) await readImage(f);
@@ -393,7 +413,6 @@
 
     UI.btnClr.addEventListener('click', () => { state.files = []; renderGallery(); UI.outTxt.value = ""; UI.btnRun.disabled = true; });
 
-    // Enable drag-to-reorder
     new Sortable(UI.gallery, {
         animation: 150,
         onEnd: () => {
@@ -403,7 +422,7 @@
     });
 
     /** ==========================================
-     * 5. THE WEB-GPU INFERENCE PIPELINE
+     * 5. INFERENCE EXECUTION
      * ========================================== */
     UI.btnRun.addEventListener('click', async () => {
         if (!state.visionSession || !state.langSession || state.files.length === 0) return;
@@ -418,45 +437,26 @@
             UI.statLbl.textContent = `Analyzing Page ${i+1}...`;
             UI.statCnt.textContent = `${i + 1}/${state.files.length}`;
 
-            let vResults = null;
-            let lResults = null;
+            let vResults = null, lResults = null, tensor = null, inputIds = null;
 
             try {
-                // Step A: Image Preprocessing -> Tensor [1, 3, 448, 448] (Standard ViT input size)
-                log(`Preprocessing Page ${i+1}...`, "info");
-                const tensor = await imageToTensor(file.dataUrl);
+                tensor = await imageToTensor(file.dataUrl);
                 
-                // Step B: Vision Encoder Pass
-                log(`Running Vision Encoder...`, "info");
+                log(`Vision Pass: Pg ${i+1}...`, "info");
                 vResults = await state.visionSession.run({ [state.visionSession.inputNames[0]]: tensor });
-                tensor.dispose(); // Free VRAM immediately
                 
-                // Get the output name dynamically (usually 'last_hidden_state' or 'image_features')
                 const imgFeatures = vResults[state.visionSession.outputNames[0]]; 
 
-                // Step C: Language Decoder Pass
-                log(`Running Language Decoder...`, "info");
-                // NOTE: GLM-OCR specifically requires the image features AND start tokens.
-                // Because we are in raw JS, we generate standard sequence starts. 
-                // *If brad-agi's model expects specific input_ids shapes, they go here.*
-                
-                // Creating dummy input_ids tensor shaped [1, 1] containing the Tokenizer's BOS token (e.g. 150004 for GLM)
-                const startToken = new Int32Array([150004]); 
-                const inputIds = new ort.Tensor('int32', startToken, [1, 1]);
+                log(`Language Pass: Pg ${i+1}...`, "info");
+                // GLM standard BOS token setup
+                inputIds = new ort.Tensor('int32', new Int32Array([150004]), [1, 1]);
 
                 lResults = await state.langSession.run({ 
                     [state.langSession.inputNames[0]]: inputIds,
                     [state.langSession.inputNames[1]]: imgFeatures 
                 });
                 
-                inputIds.dispose();
-
-                // Step D: Decode Tokens to Text
-                log(`Decoding Tokens...`, "info");
-                // The language model outputs a logits tensor. We extract the predicted token IDs.
                 const rawLogitsData = lResults[state.langSession.outputNames[0]].data;
-                
-                // We pass the data to our HuggingFace tokenizer instance
                 const decodedText = state.tokenizer.decode(rawLogitsData, { skip_special_tokens: true });
                 
                 UI.outTxt.value += `\n[Page ${i+1}]\n${decodedText}\n`;
@@ -466,9 +466,10 @@
                 log(`Inference failed on Page ${i+1}: ${err.message}`, "err");
                 UI.outTxt.value += `\n[Page ${i+1}] - ERROR: ${err.message}\n`;
             } finally {
-                // Step E: Aggressive VRAM Cleanup (CRITICAL for multi-page PDF processing)
-                if (vResults) { for (const key in vResults) if(vResults[key].dispose) vResults[key].dispose(); }
-                if (lResults) { for (const key in lResults) if(lResults[key].dispose) lResults[key].dispose(); }
+                if (tensor) tensor.dispose();
+                if (inputIds) inputIds.dispose();
+                if (vResults) for (const key in vResults) if(vResults[key].dispose) vResults[key].dispose();
+                if (lResults) for (const key in lResults) if(lResults[key].dispose) lResults[key].dispose();
             }
         }
 
@@ -480,31 +481,27 @@
         UI.btnRun.disabled = false;
     });
 
-    // Helper: Convert DataURL to Float32 CHW Tensor
     async function imageToTensor(dataUrl) {
         const img = new Image();
         img.src = dataUrl;
         await new Promise(r => img.onload = r);
         
         const canvas = document.createElement('canvas');
-        canvas.width = 448; // Must match vision encoder expected width
-        canvas.height = 448;
+        canvas.width = 448; canvas.height = 448;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         
         const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const floatData = new Float32Array(3 * canvas.width * canvas.height);
         
-        // Channel-First (CHW) and Standard Normalization
         for (let i = 0; i < canvas.width * canvas.height; i++) {
-            floatData[i] = (imgData.data[i * 4] / 255.0 - 0.481) / 0.268; // R
-            floatData[canvas.width * canvas.height + i] = (imgData.data[i * 4 + 1] / 255.0 - 0.458) / 0.261; // G
-            floatData[2 * canvas.width * canvas.height + i] = (imgData.data[i * 4 + 2] / 255.0 - 0.408) / 0.275; // B
+            floatData[i] = (imgData.data[i * 4] / 255.0 - 0.481) / 0.268;
+            floatData[canvas.width * canvas.height + i] = (imgData.data[i * 4 + 1] / 255.0 - 0.458) / 0.261;
+            floatData[2 * canvas.width * canvas.height + i] = (imgData.data[i * 4 + 2] / 255.0 - 0.408) / 0.275;
         }
         return new ort.Tensor('float32', floatData, [1, 3, canvas.height, canvas.width]);
     }
 
-    // Utility: Copy Output
     UI.btnCopy.addEventListener('click', () => {
         if (!UI.outTxt.value) return;
         UI.outTxt.select();
