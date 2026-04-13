@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GLM-OCR | Ultimate Local Pipeline</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+
+    <style>
+        /* === Premium UI & Theming === */
+        :root {
+            --bg: #0f1115; --panel: #151923; --muted: #232836; --muted-2: #2b3244; 
+            --text: #e6e6e6; --text-dim: #9aa3b6; --accent: #62d0ff; 
+            --ok: #30d158; --warn: #ffcc00; --err: #ff453a; 
+            --border: #1e2431; --shadow: 0 10px 30px rgba(0,0,0,.35);
+            --radius: 12px;
+        }
+
+        [data-theme="light"] {
+            --bg: #f0f2f5; --panel: #ffffff; --muted: #dce3eb; --muted-2: #eef2f6;
+            --text: #1a202c; --text-dim: #64748b; --accent: #2563eb;
+            --ok: #059669; --warn: #d97706; --err: #dc2626;
+            --border: #e2e8f0; --shadow: 0 4px 12px rgba(0,0,0,.05);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: var(--bg); color: var(--text);
+            min-height: 100vh; display: flex; flex-direction: column;
+            transition: background 0.3s, color 0.3s;
+        }
+
+        /* === Scrollbars === */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg); }
+        ::-webkit-scrollbar-thumb { background: var(--muted-2); border-radius: 4px; }
+
+        /* === Layout === */
+        header { 
+            height: 60px; background: var(--panel); border-bottom: 1px solid var(--border); 
+            display: flex; align-items: center; justify-content: space-between; 
+            padding: 0 24px; position: sticky; top: 0; z-index: 100; box-shadow: var(--shadow); 
+        }
+        h1 { font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+        .badge { background: var(--accent); color: #000; font-size: 11px; padding: 3px 8px; border-radius: 6px; font-weight: 700; }
+
+        main {
+            flex: 1; display: grid; grid-template-columns: 350px 1fr; gap: 20px;
+            padding: 24px; max-width: 1600px; margin: 0 auto; width: 100%;
+        }
+        @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+
+        .col { display: flex; flex-direction: column; gap: 16px; }
+
+        /* === Cards & Inputs === */
+        .card {
+            background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+            display: flex; flex-direction: column; box-shadow: var(--shadow); overflow: hidden;
+        }
+        .card-head { 
+            background: var(--muted-2); padding: 14px 18px; border-bottom: 1px solid var(--border);
+            display: flex; justify-content: space-between; align-items: center; font-weight: 600; font-size: 14px;
+        }
+        .card-body { padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+
+        label { font-size: 12px; font-weight: 600; color: var(--text-dim); margin-bottom: 4px; display: block; }
+        input[type="text"], input[type="url"], input[type="password"] {
+            width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text);
+            padding: 10px; border-radius: 8px; font-size: 13px; outline: none; transition: 0.2s;
+        }
+        input:focus { border-color: var(--accent); }
+
+        .switch { 
+            position: relative; width: 36px; height: 20px; background: var(--muted); 
+            border-radius: 20px; cursor: pointer; transition: 0.3s; 
+        }
+        .switch::after { 
+            content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; 
+            background: #fff; border-radius: 50%; transition: 0.3s; 
+        }
+        .switch.on { background: var(--accent); }
+        .switch.on::after { transform: translateX(16px); }
+
+        /* === Buttons === */
+        .btn-row { display: flex; gap: 10px; }
+        button {
+            flex: 1; background: var(--muted-2); border: 1px solid var(--border); color: var(--text);
+            padding: 10px; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer; transition: 0.2s;
+        }
+        button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        button.primary { background: var(--accent); color: #090b10; border: none; }
+        button.primary:hover:not(:disabled) { filter: brightness(1.1); color: #000; }
+
+        /* === Dropzone & Gallery === */
+        .dropzone {
+            border: 2px dashed var(--muted); border-radius: 8px; padding: 30px 20px;
+            text-align: center; cursor: pointer; transition: 0.2s; background: var(--bg);
+        }
+        .dropzone:hover, .dropzone.dragover { border-color: var(--accent); background: rgba(98, 208, 255, 0.05); }
+
+        .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 10px; }
+        .thumb {
+            aspect-ratio: 1; background: #000; border-radius: 6px; overflow: hidden;
+            border: 1px solid var(--border); position: relative; cursor: grab;
+        }
+        .thumb img { width: 100%; height: 100%; object-fit: cover; }
+        .thumb .del-btn {
+            position: absolute; top: 4px; right: 4px; background: var(--err); color: white;
+            width: 20px; height: 20px; border-radius: 50%; border: none; font-size: 12px;
+            display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0;
+        }
+
+        /* === Output Editor === */
+        textarea {
+            width: 100%; height: 100%; min-height: 400px; padding: 16px; border-radius: 8px;
+            border: 1px solid var(--border); background: var(--bg); color: var(--text);
+            font-family: 'SFMono-Regular', Consolas, monospace; font-size: 13px; resize: none;
+        }
+
+        /* === Progress & Logs === */
+        .status-text { font-size: 12px; color: var(--text-dim); display: flex; justify-content: space-between; margin-top: 8px; }
+        .progress-bar { height: 6px; background: var(--muted); border-radius: 3px; overflow: hidden; margin-top: 4px; }
+        .progress-fill { height: 100%; background: var(--accent); width: 0%; transition: 0.3s; }
+        
+        #logs { font-family: monospace; font-size: 11px; color: var(--text-dim); max-height: 150px; overflow-y: auto; padding: 10px; background: var(--bg); border-radius: 8px; border: 1px solid var(--border); margin-top: 10px;}
+        .log-ok { color: var(--ok); } .log-err { color: var(--err); } .log-warn { color: var(--warn); }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>GLM-OCR <span class="badge">WebGPU Local Pipeline</span></h1>
+    <div style="display:flex; align-items:center; gap:10px;">
+        <span style="font-size: 12px; color: var(--text-dim);">Dark Mode</span>
+        <div id="themeToggle" class="switch on"></div>
+    </div>
+</header>
+
+<main>
+    <div class="col">
+        
+        <div class="card">
+            <div class="card-head">1. Engine Configuration</div>
+            <div class="card-body">
+                <div>
+                    <label>R2 Model Base URL (Folder with ONNX files)</label>
+                    <input type="url" id="modelUrl" placeholder="https://pub-xxx.r2.dev/glm-ocr">
+                </div>
+                
+                <div style="background: var(--bg); padding: 12px; border-radius: 8px; border: 1px solid var(--border);">
+                    <div style="display:flex; justify-content:space-between; margin-bottom: 8px;">
+                        <label style="margin:0; color: var(--accent);">Use Lovable CORS Proxy</label>
+                        <div id="proxyToggle" class="switch on"></div>
+                    </div>
+                    <div id="proxySettings" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <div><label>Header Key</label><input type="text" id="proxyKeyName" value="x-proxy-key"></div>
+                        <div><label>Header Value</label><input type="password" id="proxyKeyVal" value="chikibriki"></div>
+                    </div>
+                </div>
+
+                <button id="btnLoadModel" class="primary">Initialize WebGPU Engines</button>
+                <div id="logs">System Ready. Waiting for initialization...</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-head">2. Document Input</div>
+            <div class="card-body">
+                <div id="dropzone" class="dropzone">
+                    <strong style="font-size: 16px;">Drop PDF or Images</strong><br>
+                    <span style="font-size: 12px; color: var(--text-dim);">Order can be rearranged below</span>
+                    <input type="file" id="fileInput" multiple accept="application/pdf,image/*" hidden>
+                </div>
+                
+                <div id="gallery" class="gallery"></div>
+                
+                <div class="btn-row" style="margin-top: 10px;">
+                    <button id="btnRunInference" class="primary" disabled>Run Inference</button>
+                    <button id="btnClear" disabled>Clear</button>
+                </div>
+
+                <div class="status-text">
+                    <span id="statusLabel">Idle</span>
+                    <span id="statusCount">0%</span>
+                </div>
+                <div class="progress-bar"><div id="progressFill" class="progress-fill"></div></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card" style="height: calc(100vh - 110px);">
+        <div class="card-head">
+            <span>Extraction Output</span>
+            <button id="btnCopy" style="width: auto; padding: 4px 12px; font-size: 11px;">Copy Output</button>
+        </div>
+        <div class="card-body" style="padding: 0; flex: 1;">
+            <textarea id="outputTxt" style="border: none; border-radius: 0;"></textarea>
+        </div>
+    </div>
+</main>
+
+<script type="module">
+    import { AutoTokenizer } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0';
+    window.AutoTokenizer = AutoTokenizer;
+</script>
+
+<script>
+    /** ==========================================
+     * 1. GLOBAL STATE & UTILS
+     * ========================================== */
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    
+    const state = {
+        visionSession: null,
+        langSession: null,
+        tokenizer: null,
+        files: [], // { id, dataUrl }
+        isProcessing: false,
+        proxyUrl: "https://onbkfqayveownervyktu.supabase.co/functions/v1/cors-proxy"
+    };
+
+    const UI = {
+        theme: document.getElementById('themeToggle'),
+        modelUrl: document.getElementById('modelUrl'),
+        proxyTgl: document.getElementById('proxyToggle'),
+        proxySet: document.getElementById('proxySettings'),
+        pKeyName: document.getElementById('proxyKeyName'),
+        pKeyVal: document.getElementById('proxyKeyVal'),
+        btnLoad: document.getElementById('btnLoadModel'),
+        logs: document.getElementById('logs'),
+        drop: document.getElementById('dropzone'),
+        fileIn: document.getElementById('fileInput'),
+        gallery: document.getElementById('gallery'),
+        btnRun: document.getElementById('btnRunInference'),
+        btnClr: document.getElementById('btnClear'),
+        progFill: document.getElementById('progressFill'),
+        statLbl: document.getElementById('statusLabel'),
+        statCnt: document.getElementById('statusCount'),
+        outTxt: document.getElementById('outputTxt'),
+        btnCopy: document.getElementById('btnCopy')
+    };
+
+    function log(msg, type = "info") {
+        let colorClass = type === 'ok' ? 'log-ok' : type === 'err' ? 'log-err' : type === 'warn' ? 'log-warn' : '';
+        UI.logs.innerHTML += `<div class="${colorClass}">[${new Date().toLocaleTimeString()}] ${msg}</div>`;
+        UI.logs.scrollTop = UI.logs.scrollHeight;
+    }
+
+    // Settings Persistence
+    UI.modelUrl.value = localStorage.getItem('glm_url') || '';
+    UI.modelUrl.addEventListener('change', e => localStorage.setItem('glm_url', e.target.value));
+    
+    UI.theme.addEventListener('click', () => {
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark');
+        UI.theme.classList.toggle('on', !isDark);
+    });
+
+    UI.proxyTgl.addEventListener('click', () => {
+        const isOn = UI.proxyTgl.classList.toggle('on');
+        UI.proxySet.style.display = isOn ? 'grid' : 'none';
+    });
+
+    /** ==========================================
+     * 2. GLOBAL FETCH INTERCEPTOR (The Magic)
+     * ========================================== */
+    const originalFetch = window.fetch;
+    window.fetch = async (...args) => {
+        let url = typeof args[0] === 'string' ? args[0] : args[0].url;
+        let options = args[1] || {};
+        
+        const useProxy = UI.proxyTgl.classList.contains('on');
+        const baseUrl = UI.modelUrl.value.trim();
+
+        // If proxy is ON, and the request is going to our Cloudflare Model Bucket...
+        if (useProxy && baseUrl && url.startsWith(baseUrl)) {
+            const hKey = UI.pKeyName.value.trim();
+            const hVal = UI.pKeyVal.value.trim();
+            
+            // Route through Lovable Supabase Edge Function via POST
+            return originalFetch(state.proxyUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', [hKey]: hVal },
+                body: JSON.stringify({
+                    url: url,
+                    method: options.method || 'GET',
+                    headers: options.headers || {}
+                })
+            });
+        }
+        // Otherwise, allow standard fetch
+        return originalFetch(...args);
+    };
+
+    /** ==========================================
+     * 3. ENGINE INITIALIZATION
+     * ========================================== */
+    UI.btnLoad.addEventListener('click', async () => {
+        const baseUrl = UI.modelUrl.value.trim();
+        if (!baseUrl) return alert("Please enter the R2 Model Base URL.");
+        if (!window.AutoTokenizer) return alert("Tokenizer library is still loading, please wait a second.");
+
+        UI.btnLoad.disabled = true;
+        log("Initializing Inference Pipeline...", "warn");
+
+        try {
+            // 1. Tokenizer
+            log("Fetching Tokenizer dictionary...", "info");
+            state.tokenizer = await window.AutoTokenizer.from_pretrained(baseUrl);
+            log("Tokenizer loaded successfully.", "ok");
+
+            // 2. Vision Encoder
+            log("Allocating WebGPU memory for Vision Encoder...", "info");
+            const visionPath = `${baseUrl}/vision_encoder_int8.onnx`;
+            state.visionSession = await ort.InferenceSession.create(visionPath, { executionProviders: ['webgpu'] });
+            log(`Vision Encoder ready. Expected inputs: ${state.visionSession.inputNames}`, "ok");
+
+            // 3. Language Decoder
+            log("Allocating WebGPU memory for Language Decoder...", "info");
+            const langPath = `${baseUrl}/language_model_int8.onnx`;
+            state.langSession = await ort.InferenceSession.create(langPath, { executionProviders: ['webgpu'] });
+            log(`Language Decoder ready. Expected inputs: ${state.langSession.inputNames}`, "ok");
+
+            UI.btnLoad.textContent = "Engines Online";
+            if(state.files.length > 0) UI.btnRun.disabled = false;
+
+        } catch (err) {
+            log(`Engine Failure: ${err.message}`, "err");
+            UI.btnLoad.disabled = false;
+        }
+    });
+
+    /** ==========================================
+     * 4. INPUT & GALLERY LOGIC
+     * ========================================== */
+    UI.drop.addEventListener('click', () => UI.fileIn.click());
+    UI.drop.addEventListener('dragover', e => { e.preventDefault(); UI.drop.classList.add('dragover'); });
+    UI.drop.addEventListener('dragleave', () => UI.drop.classList.remove('dragover'));
+    UI.drop.addEventListener('drop', e => { e.preventDefault(); UI.drop.classList.remove('dragover'); handleFiles(e.dataTransfer.files); });
+    UI.fileIn.addEventListener('change', e => handleFiles(e.target.files));
+
+    async function handleFiles(fileList) {
+        log("Extracting assets...", "info");
+        for (let f of fileList) {
+            if (f.type === 'application/pdf') await extractPdf(f);
+            else if (f.type.startsWith('image/')) await readImage(f);
+        }
+        renderGallery();
+        UI.btnClr.disabled = false;
+        if (state.visionSession && state.files.length > 0) UI.btnRun.disabled = false;
+    }
+
+    function readImage(file) {
+        return new Promise(res => {
+            const r = new FileReader();
+            r.onload = e => { state.files.push({ id: Date.now()+Math.random(), dataUrl: e.target.result }); res(); };
+            r.readAsDataURL(file);
+        });
+    }
+
+    async function extractPdf(file) {
+        const buf = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument(buf).promise;
+        for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const vp = page.getViewport({ scale: 2.0 });
+            const canvas = document.createElement('canvas');
+            canvas.width = vp.width; canvas.height = vp.height;
+            await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+            state.files.push({ id: Date.now()+i, dataUrl: canvas.toDataURL('image/jpeg', 0.9) });
+        }
+    }
+
+    function renderGallery() {
+        UI.gallery.innerHTML = state.files.map(f => `
+            <div class="thumb" data-id="${f.id}">
+                <img src="${f.dataUrl}">
+                <button class="del-btn" onclick="removeFile('${f.id}')">×</button>
+            </div>
+        `).join('');
+    }
+
+    window.removeFile = (id) => {
+        state.files = state.files.filter(f => f.id.toString() !== id.toString());
+        renderGallery();
+        if (state.files.length === 0) { UI.btnRun.disabled = true; UI.btnClr.disabled = true; }
+    };
+
+    UI.btnClr.addEventListener('click', () => { state.files = []; renderGallery(); UI.outTxt.value = ""; UI.btnRun.disabled = true; });
+
+    // Enable drag-to-reorder
+    new Sortable(UI.gallery, {
+        animation: 150,
+        onEnd: () => {
+            const newIds = Array.from(UI.gallery.children).map(el => el.dataset.id);
+            state.files = newIds.map(id => state.files.find(f => f.id.toString() === id));
+        }
+    });
+
+    /** ==========================================
+     * 5. THE WEB-GPU INFERENCE PIPELINE
+     * ========================================== */
+    UI.btnRun.addEventListener('click', async () => {
+        if (!state.visionSession || !state.langSession || state.files.length === 0) return;
+        
+        UI.btnRun.disabled = true;
+        state.isProcessing = true;
+        UI.outTxt.value += `\n--- Job Started ---\n`;
+
+        for (let i = 0; i < state.files.length; i++) {
+            const file = state.files[i];
+            UI.progFill.style.width = `${((i) / state.files.length) * 100}%`;
+            UI.statLbl.textContent = `Analyzing Page ${i+1}...`;
+            UI.statCnt.textContent = `${i + 1}/${state.files.length}`;
+
+            let vResults = null;
+            let lResults = null;
+
+            try {
+                // Step A: Image Preprocessing -> Tensor [1, 3, 448, 448] (Standard ViT input size)
+                log(`Preprocessing Page ${i+1}...`, "info");
+                const tensor = await imageToTensor(file.dataUrl);
+                
+                // Step B: Vision Encoder Pass
+                log(`Running Vision Encoder...`, "info");
+                vResults = await state.visionSession.run({ [state.visionSession.inputNames[0]]: tensor });
+                tensor.dispose(); // Free VRAM immediately
+                
+                // Get the output name dynamically (usually 'last_hidden_state' or 'image_features')
+                const imgFeatures = vResults[state.visionSession.outputNames[0]]; 
+
+                // Step C: Language Decoder Pass
+                log(`Running Language Decoder...`, "info");
+                // NOTE: GLM-OCR specifically requires the image features AND start tokens.
+                // Because we are in raw JS, we generate standard sequence starts. 
+                // *If brad-agi's model expects specific input_ids shapes, they go here.*
+                
+                // Creating dummy input_ids tensor shaped [1, 1] containing the Tokenizer's BOS token (e.g. 150004 for GLM)
+                const startToken = new Int32Array([150004]); 
+                const inputIds = new ort.Tensor('int32', startToken, [1, 1]);
+
+                lResults = await state.langSession.run({ 
+                    [state.langSession.inputNames[0]]: inputIds,
+                    [state.langSession.inputNames[1]]: imgFeatures 
+                });
+                
+                inputIds.dispose();
+
+                // Step D: Decode Tokens to Text
+                log(`Decoding Tokens...`, "info");
+                // The language model outputs a logits tensor. We extract the predicted token IDs.
+                const rawLogitsData = lResults[state.langSession.outputNames[0]].data;
+                
+                // We pass the data to our HuggingFace tokenizer instance
+                const decodedText = state.tokenizer.decode(rawLogitsData, { skip_special_tokens: true });
+                
+                UI.outTxt.value += `\n[Page ${i+1}]\n${decodedText}\n`;
+                UI.outTxt.scrollTop = UI.outTxt.scrollHeight;
+
+            } catch (err) {
+                log(`Inference failed on Page ${i+1}: ${err.message}`, "err");
+                UI.outTxt.value += `\n[Page ${i+1}] - ERROR: ${err.message}\n`;
+            } finally {
+                // Step E: Aggressive VRAM Cleanup (CRITICAL for multi-page PDF processing)
+                if (vResults) { for (const key in vResults) if(vResults[key].dispose) vResults[key].dispose(); }
+                if (lResults) { for (const key in lResults) if(lResults[key].dispose) lResults[key].dispose(); }
+            }
+        }
+
+        UI.progFill.style.width = '100%';
+        UI.statLbl.textContent = "Complete!";
+        log("Pipeline execution finished.", "ok");
+        
+        state.isProcessing = false;
+        UI.btnRun.disabled = false;
+    });
+
+    // Helper: Convert DataURL to Float32 CHW Tensor
+    async function imageToTensor(dataUrl) {
+        const img = new Image();
+        img.src = dataUrl;
+        await new Promise(r => img.onload = r);
+        
+        const canvas = document.createElement('canvas');
+        canvas.width = 448; // Must match vision encoder expected width
+        canvas.height = 448;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        
+        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const floatData = new Float32Array(3 * canvas.width * canvas.height);
+        
+        // Channel-First (CHW) and Standard Normalization
+        for (let i = 0; i < canvas.width * canvas.height; i++) {
+            floatData[i] = (imgData.data[i * 4] / 255.0 - 0.481) / 0.268; // R
+            floatData[canvas.width * canvas.height + i] = (imgData.data[i * 4 + 1] / 255.0 - 0.458) / 0.261; // G
+            floatData[2 * canvas.width * canvas.height + i] = (imgData.data[i * 4 + 2] / 255.0 - 0.408) / 0.275; // B
+        }
+        return new ort.Tensor('float32', floatData, [1, 3, canvas.height, canvas.width]);
+    }
+
+    // Utility: Copy Output
+    UI.btnCopy.addEventListener('click', () => {
+        if (!UI.outTxt.value) return;
+        UI.outTxt.select();
+        document.execCommand('copy');
+        UI.btnCopy.textContent = "Copied!";
+        setTimeout(() => UI.btnCopy.textContent = "Copy Output", 2000);
+    });
+</script>
+</body>
+</html>
